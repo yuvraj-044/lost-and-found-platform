@@ -1,0 +1,14 @@
+{
+  "name": "lost-and-found-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm --prefix backend run dev\" \"npm --prefix app run dev\"",
+    "dev:app": "npm --prefix app run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "npm --prefix backend run build && npm --prefix app run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
