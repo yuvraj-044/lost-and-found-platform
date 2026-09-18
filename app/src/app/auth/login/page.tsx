@@ -32,7 +32,7 @@ function LoginForm() {
 
       if (authError) {
         if (authError.message.toLowerCase().includes("email not confirmed")) {
-          setError("Email not confirmed. Please use the verified demo credentials below.");
+          setError("Email not confirmed. Please check your inbox for confirmation instructions.");
         } else {
           setError(authError.message);
         }
@@ -44,7 +44,12 @@ function LoginForm() {
       // avoiding any Next.js stale router cache issues
       window.location.href = redirectTo;
     } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred");
+      const msg = err?.message || "";
+      if (msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("failed to fetch")) {
+        setError("Cannot connect to Supabase database. Your project may be paused in the Supabase dashboard (supabase.com), or the NEXT_PUBLIC_SUPABASE_URL in .env is unreachable.");
+      } else {
+        setError(msg || "An unexpected error occurred");
+      }
       setLoading(false);
     }
   };
@@ -86,16 +91,14 @@ function LoginForm() {
         await handleSignInWithCredentials(email, password);
       }
     } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred");
+      const msg = err?.message || "";
+      if (msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("failed to fetch")) {
+        setError("Cannot connect to Supabase database. Your project may be paused in the Supabase dashboard (supabase.com), or the NEXT_PUBLIC_SUPABASE_URL in .env is unreachable.");
+      } else {
+        setError(msg || "An unexpected error occurred");
+      }
       setLoading(false);
     }
-  };
-
-  const fillDemoAccount = (demoEmail: string, demoPass: string) => {
-    setIsSignUp(false);
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    handleSignInWithCredentials(demoEmail, demoPass);
   };
 
   return (
@@ -118,51 +121,6 @@ function LoginForm() {
             ? "Join the community recovery network"
             : "Sign in to manage your reports and claims"}
         </p>
-      </div>
-
-      {/* Demo Credentials Quick-Access Bar */}
-      <div className="p-3.5 rounded-2xl bg-surface-container-low border border-primary/20 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-primary font-bold text-xs">
-            <span className="material-symbols-outlined text-sm">verified_user</span>
-            <span>Live Presentation Demo Accounts</span>
-          </div>
-          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-            1-Click Login
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5 pt-1">
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => fillDemoAccount("yuvraj@pccoepune.org", "abcd@1234")}
-            className="flex flex-col items-start p-2 rounded-xl bg-surface-container-lowest hover:bg-primary hover:text-white border border-surface-container-high transition-all text-left group cursor-pointer disabled:opacity-50"
-          >
-            <span className="font-bold text-[11px] group-hover:text-white">1. Reporter</span>
-            <span className="text-[10px] text-outline group-hover:text-white/80 truncate w-full font-medium">Yuvraj</span>
-            <span className="text-[9px] text-primary group-hover:text-white mt-1 font-semibold">Sign In →</span>
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => fillDemoAccount("demo.student@findr.com", "Password@1234")}
-            className="flex flex-col items-start p-2 rounded-xl bg-surface-container-lowest hover:bg-primary hover:text-white border border-surface-container-high transition-all text-left group cursor-pointer disabled:opacity-50"
-          >
-            <span className="font-bold text-[11px] group-hover:text-white">2. Claimant</span>
-            <span className="text-[10px] text-outline group-hover:text-white/80 truncate w-full font-medium">Alex (Student)</span>
-            <span className="text-[9px] text-primary group-hover:text-white mt-1 font-semibold">Sign In →</span>
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => fillDemoAccount("admin.staff@findr.com", "Password@1234")}
-            className="flex flex-col items-start p-2 rounded-xl bg-surface-container-lowest hover:bg-primary hover:text-white border border-surface-container-high transition-all text-left group cursor-pointer disabled:opacity-50"
-          >
-            <span className="font-bold text-[11px] group-hover:text-white">3. Security</span>
-            <span className="text-[10px] text-outline group-hover:text-white/80 truncate w-full font-medium">Sarah (Staff)</span>
-            <span className="text-[9px] text-primary group-hover:text-white mt-1 font-semibold">Sign In →</span>
-          </button>
-        </div>
       </div>
 
       {/* Auth Mode Toggle */}

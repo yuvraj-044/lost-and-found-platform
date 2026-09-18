@@ -15,7 +15,6 @@ A full-stack, community-driven Lost & Found web application designed to connect 
 - **📝 Simple Item Reporting**: Submit reports with title, category, location, date, description, and optional photo upload with base64 Data URL fallback.
 - **🔒 Ownership Verification Workflow**: Claimants submit non-public proof (wallpaper photos, serial numbers, unique scratches, contents) to prove authentic ownership.
 - **📊 User Dashboard**: Manage reported items (Mark Active / Resolved, Delete reports) and track incoming or submitted claims.
-- **🔑 One-Click Demo Login**: Pre-configured demo accounts for fast live testing and presentations.
 
 ---
 
@@ -31,16 +30,32 @@ A full-stack, community-driven Lost & Found web application designed to connect 
 ## 📁 Repository Structure
 
 ```text
-├── app/                  # Next.js 16 Frontend (Pages, Components, Server Actions)
+├── app/                  # Next.js 16 Frontend (App Router, Tailwind CSS, SSR)
 │   ├── src/
-│   │   ├── app/          # App Router pages (Home, Report, Dashboard, Auth)
-│   │   ├── components/   # UI Layout & Explore components
-│   │   ├── lib/          # Server Actions & Supabase Client
-│   │   └── types/        # TypeScript Database interfaces
-│   └── supabase/         # SQL Schema migrations & seed scripts
-├── backend/              # Express.js TypeScript Backend
-│   └── src/              # Express Server, Routes (items, claims, auth)
-└── package.json          # Root Monorepo configuration
+│   │   ├── app/          # Pages & API routes (Home, Report, Dashboard, Auth)
+│   │   ├── components/   # Modular UI components (Layout, Explore, Modals)
+│   │   ├── lib/          # Server actions, Supabase client & utilities
+│   │   └── types/        # TypeScript database & entity interfaces
+│   └── public/           # Static assets
+├── backend/              # Express.js TypeScript Backend API
+│   └── src/
+│       ├── config/       # Supabase service client & environment config
+│       ├── middleware/   # Authentication & request validation middleware
+│       ├── routes/       # Express route handlers (items, claims, auth)
+│       └── server.ts     # Express application entrypoint
+├── docs/                 # Project documentation & technical specifications
+│   ├── README.md         # Documentation index & quick guide
+│   ├── architecture.md   # Architecture design, state machine & diagrams
+│   ├── backend.md        # REST API endpoints & backend specifications
+│   ├── database.md       # PostgreSQL schema, ERD & RLS policies
+│   ├── frontend.md       # Frontend UI/UX design & client structure
+│   └── idea.md           # Product concept, features & roadmap
+├── supabase/             # Shared Database Migrations & SQL Seed Scripts
+│   ├── migrations/       # Version-controlled database schema migrations
+│   ├── fix_auth_schema.sql
+│   └── cleanup_demo_accounts.sql
+├── package.json          # Root monorepo configuration (concurrent scripts)
+└── README.md             # Project overview & local setup guide
 ```
 
 ---

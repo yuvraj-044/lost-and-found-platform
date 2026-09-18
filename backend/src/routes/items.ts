@@ -35,9 +35,15 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Strip private_details before returning to clients
+    const safeData = (data || []).map((item: any) => {
+      const { private_details, ...publicItem } = item;
+      return publicItem;
+    });
+
     res.json({
-      data: data || [],
-      count: data?.length || 0,
+      data: safeData,
+      count: safeData.length,
       limit: Number(limit),
       offset: Number(offset),
     });
@@ -68,10 +74,14 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       .select("*", { count: "exact", head: true })
       .eq("item_id", id);
 
+    // Strip private_details – never expose to public
+    const { private_details, ...publicItem } = item as any;
+
     res.json({
       data: {
-        ...item,
+        ...publicItem,
         claims_count: claimsCount ?? 0,
+        has_private_details: Array.isArray(private_details) && private_details.length > 0,
       },
     });
   } catch (err: any) {
@@ -84,10 +94,20 @@ router.post("/", requireAuth, async (req: AuthenticatedRequest, res: Response): 
   try {
     const userId = req.user!.id;
     const client = req.supabaseUserClient || supabase;
-    const { title, description, type, category, location, date_of_incident, image_url } = req.body;
+    const { title, description, type, category, location, date_of_incident, image_url, private_details } = req.body;
 
     if (!title || !description || !type) {
       res.status(400).json({ error: "Fields 'title', 'description', and 'type' are required" });
+      return;
+    }
+
+    // Validate private_details for LOST items
+    const privateDetailsArr: string[] = Array.isArray(private_details)
+      ? (private_details as string[]).map((d: string) => d.trim()).filter(Boolean)
+      : [];
+
+    if (type === "LOST" && privateDetailsArr.length < 2) {
+      res.status(400).json({ error: "Please provide at least 2 private ownership details for lost items" });
       return;
     }
 
@@ -102,6 +122,7 @@ router.post("/", requireAuth, async (req: AuthenticatedRequest, res: Response): 
         date_of_incident: date_of_incident || new Date().toISOString().split("T")[0],
         reporter_id: userId,
         image_url: image_url || null,
+        private_details: privateDetailsArr,
         status: "ACTIVE",
       })
       .select("*, reporter:users!reporter_id(*)")
@@ -145,7 +166,7 @@ router.patch("/:id", requireAuth, async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    const allowed = ["title", "description", "status", "category", "location", "image_url"];
+    const allowed = ["title", "description", "status", "category", "location", "image_url", "private_details"];
     const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
 
     for (const key of allowed) {

@@ -10,10 +10,10 @@ router.get("/", requireAuth, async (req: AuthenticatedRequest, res: Response): P
     const userId = req.user!.id;
     const client = req.supabaseUserClient || supabase;
 
-    // Claims made by this user
+    // Claims made by this user (strip private_details from item)
     const { data: myClaims, error: claimsErr } = await client
       .from("claims")
-      .select("*, item:items!item_id(*)")
+      .select("*, item:items!item_id(id, title, type, category, location, status, image_url, created_at)")
       .eq("claimant_id", userId)
       .order("created_at", { ascending: false });
 
@@ -34,7 +34,9 @@ router.get("/", requireAuth, async (req: AuthenticatedRequest, res: Response): P
     if (myItemIds.length > 0) {
       const { data: incoming } = await client
         .from("claims")
-        .select("*, item:items!item_id(*), claimant:users!claimant_id(*)")
+        .select(
+          "*, item:items!item_id(id, title, type, category, location, status, image_url, created_at), claimant:users!claimant_id(*)"
+        )
         .in("item_id", myItemIds)
         .order("created_at", { ascending: false });
 
@@ -50,22 +52,22 @@ router.get("/", requireAuth, async (req: AuthenticatedRequest, res: Response): P
   }
 });
 
-// POST /api/claims - Submit a new claim (Protected)
+// POST /api/claims - Submit an initial claim (no message, just registers intent) (Protected)
 router.post("/", requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const client = req.supabaseUserClient || supabase;
-    const { item_id, message } = req.body;
+    const { item_id } = req.body;
 
-    if (!item_id || !message) {
-      res.status(400).json({ error: "Fields 'item_id' and 'message' are required" });
+    if (!item_id) {
+      res.status(400).json({ error: "Field 'item_id' is required" });
       return;
     }
 
     // Check item exists and caller is not the reporter
     const { data: item } = await supabase
       .from("items")
-      .select("id, reporter_id, status")
+      .select("id, reporter_id, status, type")
       .eq("id", item_id)
       .single();
 
@@ -102,10 +104,10 @@ router.post("/", requireAuth, async (req: AuthenticatedRequest, res: Response): 
       .insert({
         item_id,
         claimant_id: userId,
-        message: message.trim(),
         status: "PENDING",
+        verification_status: "pending",
       })
-      .select("*, item:items!item_id(*)")
+      .select("*, item:items!item_id(id, title, type, category, location, status)")
       .single();
 
     if (error) {
@@ -115,7 +117,99 @@ router.post("/", requireAuth, async (req: AuthenticatedRequest, res: Response): 
 
     res.status(201).json({
       data: newClaim,
-      message: "Claim submitted successfully",
+      message: "Claim registered. Please complete the ownership verification.",
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/claims/:id/verify - Submit ownership verification answers (Protected)
+// The verification is server-side: private_details are fetched by admin client and NEVER sent to frontend
+router.post("/:id/verify", requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const { answers } = req.body; // string[] from the claimant
+
+    if (!answers || !Array.isArray(answers) || answers.length === 0) {
+      res.status(400).json({ error: "Verification answers are required" });
+      return;
+    }
+
+    // Fetch the claim via admin (bypass RLS)
+    const { data: claim } = await supabaseAdmin
+      .from("claims")
+      .select("id, claimant_id, item_id, verification_status, status")
+      .eq("id", id)
+      .single();
+
+    if (!claim) {
+      res.status(404).json({ error: "Claim not found" });
+      return;
+    }
+
+    if (claim.claimant_id !== userId) {
+      res.status(403).json({ error: "Forbidden: This is not your claim" });
+      return;
+    }
+
+    if (claim.verification_status !== "pending") {
+      res.status(400).json({ error: "This claim has already been verified" });
+      return;
+    }
+
+    // Fetch the private_details from the item using admin client (NEVER exposed to frontend)
+    const { data: item } = await supabaseAdmin
+      .from("items")
+      .select("private_details, type")
+      .eq("id", claim.item_id)
+      .single();
+
+    if (!item) {
+      res.status(404).json({ error: "Item not found" });
+      return;
+    }
+
+    const privateDetails: string[] = (item.private_details as string[]) || [];
+
+    // Verification logic: check if each submitted answer loosely matches any private detail
+    // A "pass" requires at least 2 out of the total details to match
+    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+
+    let matched = 0;
+    for (const answer of answers) {
+      const normAnswer = normalise(answer);
+      if (normAnswer.length < 2) continue;
+      const isMatch = privateDetails.some((detail) => {
+        const normDetail = normalise(detail);
+        return normDetail.includes(normAnswer) || normAnswer.includes(normDetail);
+      });
+      if (isMatch) matched++;
+    }
+
+    const requiredMatches = Math.max(1, Math.ceil(privateDetails.length * 0.5));
+    const passed = matched >= requiredMatches;
+    const verificationStatus = passed ? "passed" : "failed";
+
+    // Update the claim with the result (store submitted answers for admin review)
+    await supabaseAdmin
+      .from("claims")
+      .update({
+        verification_status: verificationStatus,
+        verification_answers: answers,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    res.json({
+      passed,
+      matched,
+      required: requiredMatches,
+      total: privateDetails.length,
+      message: passed
+        ? "Verification passed! The item reporter will be notified and can now accept your claim."
+        : `Verification failed. Only ${matched} of ${requiredMatches} required details matched. Please try again or contact the reporter.`,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Internal server error" });
@@ -153,6 +247,14 @@ router.patch("/:id", requireAuth, async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
+    // Only allow accepting claims that passed verification
+    if (status === "ACCEPTED" && claim.verification_status !== "passed") {
+      res.status(400).json({
+        error: "Cannot accept a claim that has not passed ownership verification",
+      });
+      return;
+    }
+
     const { data: updated, error } = await client
       .from("claims")
       .update({
@@ -160,7 +262,7 @@ router.patch("/:id", requireAuth, async (req: AuthenticatedRequest, res: Respons
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .select("*, item:items!item_id(*)")
+      .select("*, item:items!item_id(id, title, type, status)")
       .single();
 
     if (error) {

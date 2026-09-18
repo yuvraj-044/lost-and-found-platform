@@ -141,7 +141,7 @@ export default function Navbar({ onSearch }: NavbarProps) {
                 href="/auth/login"
                 className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
               >
-                Sign In / Demo
+                Sign In
               </Link>
             </div>
           )}

@@ -9,6 +9,7 @@ export interface User {
   full_name: string;
   email?: string | null;
   avatar_url: string | null;
+  is_admin?: boolean;
   created_at: string;
 }
 
@@ -23,6 +24,7 @@ export interface Item {
   date_of_incident: string | null;
   reporter_id: string;
   image_url: string | null;
+  private_details: string[]; // secret ownership details, never exposed publicly
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +34,8 @@ export interface Claim {
   item_id: string;
   claimant_id: string;
   status: ClaimStatus;
+  verification_status: "pending" | "passed" | "failed"; // verification workflow state
+  verification_answers?: string[]; // answers to private detail questions
   message: string | null;
   created_at: string;
   updated_at: string;
@@ -47,6 +51,7 @@ export interface ItemInsert {
   location?: string;
   date_of_incident?: string;
   image_url?: string;
+  private_details?: string[]; // required for lost items
 }
 
 export interface ItemUpdate {
@@ -57,6 +62,7 @@ export interface ItemUpdate {
   location?: string;
   date_of_incident?: string;
   image_url?: string;
+  private_details?: string[]; // updates allowed by owner
 }
 
 export interface ClaimInsert {
@@ -91,12 +97,14 @@ export interface Database {
           id: string;
           full_name: string;
           avatar_url?: string | null;
+          is_admin?: boolean;
           created_at?: string;
         };
         Update: {
           id?: string;
           full_name?: string;
           avatar_url?: string | null;
+          is_admin?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -114,6 +122,7 @@ export interface Database {
           date_of_incident?: string | null;
           reporter_id: string;
           image_url?: string | null;
+          private_details?: string[]; // secret details, default []
           created_at?: string;
           updated_at?: string;
         };
@@ -128,6 +137,7 @@ export interface Database {
           date_of_incident?: string | null;
           reporter_id?: string;
           image_url?: string | null;
+          private_details?: string[]; // owner can update secret details
           created_at?: string;
           updated_at?: string;
         };
@@ -148,6 +158,8 @@ export interface Database {
           item_id: string;
           claimant_id: string;
           status?: ClaimStatus;
+          verification_status?: "pending" | "passed" | "failed"; // default pending
+          verification_answers?: string[];
           message?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -157,6 +169,8 @@ export interface Database {
           item_id?: string;
           claimant_id?: string;
           status?: ClaimStatus;
+          verification_status?: "pending" | "passed" | "failed";
+          verification_answers?: string[];
           message?: string | null;
           created_at?: string;
           updated_at?: string;
