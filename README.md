@@ -9,16 +9,19 @@ A full-stack, community-driven Lost & Found web application designed to connect 
 
 ---
 
-## ✨ Features
+## ✨ Core Features & Verification Logic
 
+- **🔒 Secret Detail Verification System**:
+  - **Private Ownership Proof**: When reporting a **Lost** item, owners specify 2–3 private details (e.g., *"Red thread inside wallet"*, *"₹10 note in hidden pocket"*, *"Scratch on back corner"*).
+  - **Zero Public Leakage**: Private details are strictly stripped from all public GET endpoints and are never displayed on public feeds or to potential claimants.
+  - **Automated Verification**: When someone claims or reports finding the item, they must answer verification questions. The server runs secure server-side matching against the hidden secrets.
+  - **Strict Acceptance Guardrail**: Lost item claims cannot be accepted unless the verification status is `passed`.
 - **🔍 Live Search & Filter Feed**: Fast keyword search, status filter tabs (**All / Lost / Found**), and category filters (Electronics, Keys, Wallets, Bags, Pets, Documents, etc.).
-- **📝 Simple Item Reporting**: Submit reports with title, category, location, date, description, and optional photo upload with base64 Data URL fallback.
-- **🔒 Ownership Verification Workflow**: Claimants submit non-public proof (wallpaper photos, serial numbers, unique scratches, contents) to prove authentic ownership.
-- **📊 User Dashboard**: Manage reported items (Mark Active / Resolved, Delete reports) and track incoming or submitted claims.
-
----
-
-## 🛠️ Tech Stack
+- **📝 Multi-Step Item Reporting**: Intuitive stepped reporting flow with public information, photo uploads, and private verification secrets.
+- **📊 Comprehensive User Dashboard**: 3-tier management tab view:
+  - *My Reported Items*: Manage active/resolved posts.
+  - *Claims On My Items*: Inspect verification badges (`passed` / `failed`), claimant answers, and accept/reject controls.
+  - *My Submitted Claims*: Track progress of claims submitted on other items.
 
 - **Frontend**: Next.js 16 (App Router, Turbopack, React 19), Tailwind CSS, Lucide / Material Icons
 - **Backend API**: Express.js, Node.js, TypeScript REST API
@@ -43,8 +46,7 @@ A full-stack, community-driven Lost & Found web application designed to connect 
 │       ├── middleware/   # Authentication & request validation middleware
 │       ├── routes/       # Express route handlers (items, claims, auth)
 │       └── server.ts     # Express application entrypoint
-├── docs/                 # Project documentation & technical specifications
-│   ├── README.md         # Documentation index & quick guide
+├── docs/                 # Technical documentation
 │   ├── architecture.md   # Architecture design, state machine & diagrams
 │   ├── backend.md        # REST API endpoints & backend specifications
 │   ├── database.md       # PostgreSQL schema, ERD & RLS policies
@@ -82,7 +84,12 @@ cd app && npm install && cd ..
 cd backend && npm install && cd ..
 ```
 
-### 3. Configure Environment Variables
+### 3. Database Setup (Supabase)
+Run the migration scripts located in `supabase/migrations/` in your Supabase SQL Editor:
+1. `001_initial_schema.sql` — Initial tables, views, and RLS policies.
+2. `002_verification_schema.sql` — Secret detail verification system columns (`private_details`, `verification_status`, `verification_answers`, `is_admin`).
+
+### 4. Configure Environment Variables
 Copy `.env.example` to `.env.local` in `app/` and `.env` in `backend/`:
 
 **Frontend (`app/.env.local`)**:
@@ -119,12 +126,58 @@ npm run dev
 
 ---
 
-## 🔒 Verification & Safety Flow
+## 🔒 Secret Detail Verification Workflow
 
-1. **Finder Posts Report**: Posts general public information without revealing unique private secrets.
-2. **Owner Claims Item**: Submits a claim request with specific non-public identifying details.
-3. **Finder Reviews Claim**: Inspects proof in their Dashboard. If correct, clicks **Accept Claim**.
-4. **Contact Exchange**: Upon acceptance, status changes to `RESOLVED` and contact emails are shared to arrange handover.
+The system guarantees ownership authenticity while protecting sensitive owner data:
+
+```
+[User A: Reports Lost Item]
+    │  - Public Details: Title, Category, Location, Date, Description, Photo
+    │  - Secret Details: 2-3 Private Ownership Clues (stored securely in DB)
+    ▼
+[Public Feed / Explore]
+    │  - Displays Public Details ONLY (Private details strictly stripped)
+    ▼
+[User B: Submits Claim / Found Report]
+    │  - Must answer verification questions corresponding to the hidden secrets
+    ▼
+[Server-Side Verification Engine]
+    │  - Validates answers against stored private details using fuzzy/substring matching
+    │  - Sets claim status: "passed" or "failed"
+    ▼
+[User A: Review in Dashboard]
+    │  - Inspects claimant answers and verification badge
+    │  - Guardrail: Can ONLY accept claims if verification has "passed"
+    ▼
+[Claim Accepted -> Item RESOLVED]
+       - Item status updates to "RESOLVED"
+       - Secure contact details exchanged for item handover
+```
+
+---
+
+## 📡 REST API Endpoints
+
+### Health & Diagnostics
+- `GET /api/health` — Verifies database connection and server latency.
+
+### Items
+- `GET /api/items` — List and filter active items (`?type=LOST|FOUND&category=...&search=...`). Public data only (`private_details` are securely stripped).
+- `GET /api/items/:id` — Get single item with reporter details (excludes `private_details`).
+- `POST /api/items` — Create new item report (Includes optional `private_details` for LOST items).
+- `PATCH /api/items/:id` — Update item report (Reporter only).
+- `DELETE /api/items/:id` — Delete item report (Reporter only).
+
+### Claims & Ownership Verification
+- `GET /api/claims` — Fetch claims made by user and claims received on user's items.
+- `POST /api/claims` — Submit a claim request for an item.
+- `POST /api/claims/:id/verify` — Submit claimant answers to verify against the item's hidden private details (returns `passed` or `failed`).
+- `PATCH /api/claims/:id` — Accept/Reject claim (`{ status: "ACCEPTED" | "REJECTED" }`). Enforces that lost item claims must have `verification_status: "passed"` to be accepted.
+
+### Authentication
+- `POST /api/auth/login` — Authenticate with email & password.
+- `POST /api/auth/signup` — Register a new account.
+- `GET /api/auth/me` — Get current profile using JWT token.
 
 ---
 
